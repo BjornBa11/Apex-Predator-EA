@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Apex Predator EA — Command Centre</title>
+<style>
+:root {
+  --bg: #0d0f14;
+  --bg2: #141720;
+  --bg3: #1a1e28;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
+  --text: #e8eaf0;
+  --muted: #7a7e8a;
+  --accent: #6c8bff;
+  --accent2: #00d4aa;
+  --buy: #00d4aa;
+  --sell: #ff5c6e;
+  --skip: #f5a623;
+  --whale: #b57aff;
+  --radius: 10px;
+  --card: #141720;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 13px; }
+
+/* Layout */
+.topbar { background: var(--bg2); border-bottom: 1px solid var(--border2); padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; }
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.logo { font-size: 16px; font-weight: 700; color: var(--accent); letter-spacing: 0.5px; }
+.logo span { color: var(--accent2); }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--buy); box-shadow: 0 0 6px var(--buy); animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+.status-text { font-size: 11px; color: var(--buy); }
+.clock { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.main { display: grid; grid-template-columns: 220px 1fr 280px; gap: 12px; padding: 12px; height: calc(100vh - 45px); overflow: hidden; }
+.col { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+
+/* Cards */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+.card-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 10px; }
+
+/* Stat rows */
+.stat-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--border); }
+.stat-row:last-child { border-bottom: none; }
+.stat-label { color: var(--muted); }
+.stat-val { font-weight: 600; font-variant-numeric: tabular-nums; }
+.green { color: var(--buy); }
+.red { color: var(--sell); }
+.amber { color: var(--skip); }
+.blue { color: var(--accent); }
+.purple { color: var(--whale); }
+
+/* Signal box */
+.signal-box { border-radius: 8px; padding: 14px; text-align: center; margin-bottom: 8px; transition: all 0.4s; }
+.signal-box.BUY  { background: rgba(0,212,170,0.12); border: 1px solid rgba(0,212,170,0.35); }
+.signal-box.SELL { background: rgba(255,92,110,0.12); border: 1px solid rgba(255,92,110,0.35); }
+.signal-box.SKIP { background: rgba(245,166,35,0.10); border: 1px solid rgba(245,166,35,0.3); }
+.signal-label { font-size: 28px; font-weight: 800; letter-spacing: 2px; }
+.signal-box.BUY  .signal-label { color: var(--buy); }
+.signal-box.SELL .signal-label { color: var(--sell); }
+.signal-box.SKIP .signal-label { color: var(--skip); }
+.signal-pair { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.confidence-bar-wrap { margin-top: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; height: 4px; overflow: hidden; }
+.confidence-bar { height: 100%; border-radius: 4px; transition: width 0.5s; }
+.BUY  .confidence-bar { background: var(--buy); }
+.SELL .confidence-bar { background: var(--sell); }
+.SKIP .confidence-bar { background: var(--skip); }
+
+/* Whale feed */
+.whale-item { padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 8px; }
+.whale-item:last-child { border-bottom: none; }
+.whale-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+.whale-dot.large { background: var(--sell); box-shadow: 0 0 5px var(--sell); }
+.whale-dot.medium { background: var(--skip); }
+.whale-dot.small { background: var(--muted); }
+.whale-body { flex: 1; }
+.whale-amount { font-weight: 700; font-size: 13px; }
+.whale-detail { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.whale-time { font-size: 10px; color: var(--muted); text-align: right; flex-shrink: 0; }
+
+/* Trade log */
+.trade-item { padding: 7px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.trade-item:last-child { border-bottom: none; }
+.trade-side { font-weight: 700; font-size: 11px; padding: 2px 6px; border-radius: 4px; }
+.trade-side.B { background: rgba(0,212,170,0.15); color: var(--buy); }
+.trade-side.S { background: rgba(255,92,110,0.15); color: var(--sell); }
+.trade-pair { font-size: 12px; margin-left: 6px; }
+.trade-pnl { font-weight: 700; font-size: 12px; }
+
+/* Chart canvas */
+#equityChart { width: 100%; height: 140px; display: block; }
+
+/* Indicators */
+.ind-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ind-card { background: var(--bg3); border-radius: 8px; padding: 10px; text-align: center; }
+.ind-name { font-size: 10px; color: var(--muted); margin-bottom: 6px; }
+.ind-val { font-size: 16px; font-weight: 700; }
+.ind-signal { font-size: 10px; margin-top: 3px; }
+
+/* Gauge */
+.gauge-wrap { position: relative; width: 80px; height: 46px; margin: 0 auto 4px; overflow: hidden; }
+.gauge-bg { width: 80px; height: 80px; border-radius: 50%; border: 8px solid rgba(255,255,255,0.07); clip-path: inset(0 0 50% 0); }
+.gauge-fill { position: absolute; top: 0; left: 0; width: 80px; height: 80px; border-radius: 50%; clip-path: inset(0 0 50% 0); transition: all 0.6s; }
+.gauge-num { font-size: 14px; font-weight: 700; text-align: center; }
+
+/* Controls */
+.ctrl-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.ctrl-row-top { display: flex; align-items: center; justify-content: space-between; }
+.ctrl-label { color: var(--muted); font-size: 11px; }
+.ctrl-val { font-size: 13px; font-weight: 700; color: var(--accent); }
+.ctrl-input { width: 100%; background: var(--bg3); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); padding: 5px 8px; font-size: 12px; }
+.ctrl-input:focus { outline: none; border-color: var(--accent); }
+input[type=range].ctrl-input { padding: 0; cursor: pointer; accent-color: var(--accent); height: 20px; }
+
+select.ctrl-input { cursor: pointer; }
+
+/* Toggle */
+.toggle { position: relative; display: inline-block; width: 36px; height: 20px; cursor: pointer; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-track { position: absolute; inset: 0; border-radius: 10px; background: rgba(255,255,255,0.1); transition: background 0.2s; }
+.toggle input:checked + .toggle-track { background: var(--accent2); }
+.toggle-thumb { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
+.toggle input:checked ~ .toggle-thumb { transform: translateX(16px); }
+
+/* Buttons */
+.btn { border: 1px solid var(--border2); background: transparent; color: var(--text); padding: 8px 14px; border-radius: 7px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.15s; width: 100%; margin-bottom: 7px; }
+.btn:hover { background: rgba(255,255,255,0.05); }
+.btn.buy  { border-color: var(--buy);  color: var(--buy);  }
+.btn.sell { border-color: var(--sell); color: var(--sell); }
+.btn.halt { border-color: var(--sell); background: rgba(255,92,110,0.15); color: var(--sell); font-size: 13px; }
+.btn.halt:hover { background: rgba(255,92,110,0.25); }
+
+/* Pairs multi */
+.pair-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+.pair-badge { padding: 4px 9px; border-radius: 5px; font-size: 11px; cursor: pointer; border: 1px solid var(--border2); background: var(--bg3); transition: all 0.15s; user-select: none; }
+.pair-badge.on  { background: rgba(108,139,255,0.15); border-color: var(--accent); color: var(--accent); }
+.pair-badge.off { color: var(--muted); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; } 
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+/* Repo links */
+.repo-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.repo-row:last-child { border-bottom: none; }
+.repo-name { color: var(--accent); font-size: 12px; }
+.repo-tag { font-size: 10px; color: var(--muted); background: var(--bg3); padding: 2px 6px; border-radius: 4px; }
+
+/* Connection indicators */
+.conn-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+.conn-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.conn-dot.ok  { background: var(--buy); }
+.conn-dot.err { background: var(--sell); }
+.conn-dot.warn{ background: var(--skip); }
+.conn-name { flex: 1; font-size: 12px; }
+.conn-latency { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 900px) {
+  .main { grid-template-columns: 1fr 1fr; }
+  .col:nth-child(3) { grid-column: 1/-1; }
+}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo">APEX<span>PREDATOR</span></div>
+    <div class="status-dot" id="statusDot"></div>
+    <div class="status-text" id="statusText">LIVE — scanning</div>
+    <div style="color:var(--muted);font-size:11px;margin-left:8px" id="scanCount">Scans: 0</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:18px">
+    <div style="text-align:right">
+      <div style="font-size:10px;color:var(--muted)">EQUITY</div>
+      <div id="equityVal" style="font-weight:700;color:var(--buy);font-size:15px">$12,480.50</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:10px;color:var(--muted)">DAILY P&L</div>
+      <div id="dailyPnl" style="font-weight:700;font-size:15px;color:var(--buy)">+$284.30</div>
+    </div>
+    <div class="clock" id="clockEl">--:--:--</div>
+  </div>
+</div>
+
+<!-- MAIN GRID -->
+<div class="main">
+
+  <!-- LEFT COLUMN -->
+  <div class="col">
+
+    <!-- Current signal -->
+    <div class="card">
+      <div class="card-title">Active signal</div>
+      <div id="signalBox" class="signal-box BUY">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="signal-label" id="signalLabel">BUY</div>
+          <div style="text-align:right">
+            <div id="sigCountBig" style="font-size:22px;font-weight:800;color:var(--buy)">5/7</div>
+            <div style="font-size:10px;color:var(--muted)">signals passed</div>
+          </div>
+        </div>
+        <div class="signal-pair" id="signalPair">XAU/USD · 2s cycle</div>
+      </div>
+
+      <!-- 7-signal voting board -->
+      <div style="margin-top:8px;background:var(--bg3);border-radius:8px;padding:9px 10px;">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:7px">Signal checklist — need 5/7 to trade</div>
+        <div id="signalChecks"></div>
+        <div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:10px;color:var(--muted)">Whale score</div>
+          <div id="whaleScore" style="font-size:14px;font-weight:800;color:var(--whale)">7.4</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Technical indicators -->
+    <div class="card">
+      <div class="card-title">Technical indicators</div>
+      <div class="ind-grid">
+        <div class="ind-card">
+          <div class="ind-name">RSI(14)</div>
+          <div class="ind-val green" id="rsiVal">58.3</div>
+          <div class="ind-signal green">Bullish</div>
+        </div>
+        <div class="ind-card">
+          <div class="ind-name">MACD</div>
+          <div class="ind-val green" id="macdVal">+0.24</div>
+          <div class="ind-signal green">Cross ↑</div>
+        </div>
+        <div class="ind-card">
+          <div class="ind-name">BB %B</div>
+          <div class="ind-val amber" id="bbVal">0.71</div>
+          <div class="ind-signal amber">Upper zone</div>
+        </div>
+        <div class="ind-card">
+          <div class="ind-name">EMA 50/200</div>
+          <div class="ind-val green" id="emaVal">↑ Bull</div>
+          <div class="ind-signal green">Golden cross</div>
+        </div>
+        <div class="ind-card">
+          <div class="ind-name">ATR(14)</div>
+          <div class="ind-val blue" id="atrVal">12.4</div>
+          <div class="ind-signal" style="color:var(--muted)">Vol normal</div>
+        </div>
+        <div class="ind-card">
+          <div class="ind-name">Volume Δ</div>
+          <div class="ind-val green" id="volVal">+38%</div>
+          <div class="ind-signal green">Surge ↑</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Market stats -->
+    <div class="card">
+      <div class="card-title">Market snapshot</div>
+      <div class="stat-row"><span class="stat-label">XAU/USD</span><span class="stat-val" id="xauPrice">$2,318.40</span></div>
+      <div class="stat-row"><span class="stat-label">BTC/USDT</span><span class="stat-val" id="btcPrice">$87,240</span></div>
+      <div class="stat-row"><span class="stat-label">ETH/USDT</span><span class="stat-val" id="ethPrice">$3,412</span></div>
+      <div class="stat-row"><span class="stat-label">XAG/USD</span><span class="stat-val" id="xagPrice">$28.94</span></div>
+      <div class="stat-row"><span class="stat-label">Scan speed</span><span class="stat-val blue" id="scanSpeed">1.8s</span></div>
+      <div class="stat-row"><span class="stat-label">Trades today</span><span class="stat-val" id="tradesToday">14</span></div>
+    </div>
+
+  </div>
+
+  <!-- MIDDLE COLUMN -->
+  <div class="col">
+
+    <!-- Equity curve -->
+    <div class="card">
+      <div class="card-title">Equity curve (session)</div>
+      <canvas id="equityChart"></canvas>
+    </div>
+
+    <!-- Trade log -->
+    <div class="card">
+      <div class="card-title">Live trade log</div>
+      <div id="tradeLog"></div>
+    </div>
+
+    <!-- Whale wallet feed -->
+    <div class="card">
+      <div class="card-title">Whale activity feed — real-time</div>
+      <div id="whaleFeed"></div>
+    </div>
+
+    <!-- Connections -->
+    <div class="card">
+      <div class="card-title">API connections</div>
+      <div class="conn-row"><div class="conn-dot ok"></div><div class="conn-name">Binance WebSocket</div><div class="conn-latency" id="l1">12ms</div></div>
+      <div class="conn-row"><div class="conn-dot ok"></div><div class="conn-name">MT5 / MetaAPI bridge</div><div class="conn-latency" id="l2">28ms</div></div>
+      <div class="conn-row"><div class="conn-dot ok"></div><div class="conn-name">Whale Alert API</div><div class="conn-latency" id="l3">45ms</div></div>
+      <div class="conn-row"><div class="conn-dot ok"></div><div class="conn-name">Glassnode on-chain</div><div class="conn-latency" id="l4">62ms</div></div>
+      <div class="conn-row"><div class="conn-dot ok"></div><div class="conn-name">Nansen wallet labels</div><div class="conn-latency" id="l5">74ms</div></div>
+      <div class="conn-row"><div class="conn-dot warn"></div><div class="conn-name">Hyperliquid perps DEX</div><div class="conn-latency" id="l6">110ms</div></div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT COLUMN -->
+  <div class="col">
+
+    <!-- EA controls -->
+    <div class="card">
+      <div class="card-title">EA controls</div>
+
+      <div style="border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <label class="toggle">
+            <input type="checkbox" id="liveToggle" checked onchange="toggleLive(this.checked)">
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+          <span style="font-size:12px;color:var(--text)">Live trading</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <label class="toggle">
+            <input type="checkbox" id="whaleToggle" checked>
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+          <span style="font-size:12px;color:var(--text)">Whale signals</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <label class="toggle">
+            <input type="checkbox" id="aiToggle" checked>
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+          <span style="font-size:12px;color:var(--text)">AI decision engine</span>
+        </div>
+      </div>
+
+      <div class="ctrl-row">
+        <div class="ctrl-row-top"><span class="ctrl-label">Risk per trade</span><span class="ctrl-val" id="riskVal">1.5%</span></div>
+        <input type="range" class="ctrl-input" min="0.5" max="5" step="0.5" value="1.5" id="riskRange" oninput="updateRiskDisplay()">
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:-6px;margin-bottom:10px">= <span id="riskDollar" style="color:var(--accent);font-weight:600">$187.21</span> of current equity</div>
+      <div class="ctrl-row">
+        <div class="ctrl-row-top"><span class="ctrl-label">Max open positions</span><span class="ctrl-val" id="maxPosVal">3</span></div>
+        <input type="range" class="ctrl-input" min="1" max="10" step="1" value="3" id="maxPosRange" oninput="document.getElementById('maxPosVal').textContent=this.value">
+      </div>
+      <div class="ctrl-row">
+        <div class="ctrl-row-top"><span class="ctrl-label">Max daily DD</span><span class="ctrl-val" id="ddVal">5%</span></div>
+        <input type="range" class="ctrl-input" min="1" max="15" step="1" value="5" id="ddRange" oninput="document.getElementById('ddVal').textContent=this.value+'%'">
+      </div>
+      <div class="ctrl-row">
+        <div class="ctrl-row-top"><span class="ctrl-label">Min signals req.</span><span class="ctrl-val" id="minSigVal">5/7</span></div>
+        <input type="range" class="ctrl-input" min="3" max="7" step="1" value="5" id="minSigRange" oninput="document.getElementById('minSigVal').textContent=this.value+'/7'">
+      </div>
+      <div class="ctrl-row">
+        <div class="ctrl-row-top"><span class="ctrl-label">Scan interval</span></div>
+        <select class="ctrl-input" id="scanSelect">
+          <option value="1">1 second</option>
+          <option value="2" selected>2 seconds</option>
+          <option value="5">5 seconds</option>
+        </select>
+      </div>
+      <div class="ctrl-row">
+        <div class="ctrl-row-top"><span class="ctrl-label">Whale threshold</span><span class="ctrl-val" id="whaleVal">$500K</span></div>
+        <input type="range" class="ctrl-input" min="100" max="5000" step="100" value="500" id="whaleRange" oninput="document.getElementById('whaleVal').textContent='$'+this.value+'K'">
+      </div>
+      <button class="btn halt" onclick="emergencyHalt()">⛔ EMERGENCY HALT</button>
+    </div>
+
+    <!-- Active pairs -->
+    <div class="card">
+      <div class="card-title">Active pairs</div>
+      <div class="pair-grid" id="pairGrid"></div>
+    </div>
+
+    <!-- Strategy mode -->
+    <div class="card">
+      <div class="card-title">Strategy mode</div>
+      <div class="ctrl-row">
+        <div class="ctrl-row-top"><span class="ctrl-label">Active strategy</span></div>
+        <select class="ctrl-input" id="stratMode">
+          <option>Whale follow + TA confirm</option>
+          <option>Pure TA scalping</option>
+          <option>AI agent autonomous</option>
+          <option>Copy whale wallets</option>
+          <option>Breakout momentum</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:7px;margin-top:6px">
+        <button class="btn buy" style="width:50%">▶ Back-test</button>
+        <button class="btn" style="width:50%">📤 Export log</button>
+      </div>
+    </div>
+
+    <!-- Session stats -->
+    <div class="card">
+      <div class="card-title">Session performance</div>
+      <div class="stat-row"><span class="stat-label">Win rate</span><span class="stat-val green" id="winRate">71.4%</span></div>
+      <div class="stat-row"><span class="stat-label">Profit factor</span><span class="stat-val green" id="pf">1.94</span></div>
+      <div class="stat-row"><span class="stat-label">Avg win</span><span class="stat-val green">+$42.30</span></div>
+      <div class="stat-row"><span class="stat-label">Avg loss</span><span class="stat-val red">-$21.80</span></div>
+      <div class="stat-row"><span class="stat-label">Open positions</span><span class="stat-val" id="openPos">3</span></div>
+      <div class="stat-row"><span class="stat-label">Whale triggers</span><span class="stat-val purple" id="whaleTriggers">8</span></div>
+    </div>
+
+    <!-- Repos -->
+    <div class="card">
+      <div class="card-title">Connected open-source repos</div>
+      <div class="repo-row">
+        <div>
+          <div class="repo-name">wen82fastik/ai-trading-bot</div>
+          <div style="font-size:10px;color:var(--muted)">LLM agent core · Binance · MT5</div>
+        </div>
+        <span class="repo-tag">Python</span>
+      </div>
+      <div class="repo-row">
+        <div>
+          <div class="repo-name">freqtrade/freqtrade</div>
+          <div style="font-size:10px;color:var(--muted)">Backtest · strategy engine</div>
+        </div>
+        <span class="repo-tag">Python</span>
+      </div>
+      <div class="repo-row">
+        <div>
+          <div class="repo-name">hummingbot/hummingbot</div>
+          <div style="font-size:10px;color:var(--muted)">DEX/CEX market making</div>
+        </div>
+        <span class="repo-tag">Python</span>
+      </div>
+      <div class="repo-row">
+        <div>
+          <div class="repo-name">ccxt/ccxt</div>
+          <div style="font-size:10px;color:var(--muted)">100+ exchange execution</div>
+        </div>
+        <span class="repo-tag">JS/Python</span>
+      </div>
+      <div class="repo-row">
+        <div>
+          <div class="repo-name">whale-alert/whale-alert-api</div>
+          <div style="font-size:10px;color:var(--muted)">Real-time whale tx stream</div>
+      </div>
+        <span class="repo-tag">REST</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ===== DATA =====
+const PAIRS = ['XAU/USD','XAG/USD','BTC/USDT','ETH/USDT','SOL/USDT','BNB/USDT','XRP/USDT','EUR/USD','GBP/USD','US30'];
+const ACTIVE_PAIRS = new Set(['XAU/USD','XAG/USD','BTC/USDT','ETH/USDT']);
+const WHALE_ASSETS = ['BTC','ETH','SOL','XRP','BNB','USDC','USDT','XAU'];
+const WALLET_IDS = ['0x3f4a...8b2c','7xKXtg...sAsU','bc1q...9k2m','0x1f9a...dd4e','0xAb5...c891'];
+const SIGNAL_TYPES = ['BUY','SELL','SKIP'];
+const SIGNAL_WEIGHTS = [0.45,0.30,0.25];
+
+let scanCount = 0;
+let equityData = [];
+let equity = 12480.50;
+let dailyPnl = 284.30;
+let tradeNum = 14;
+let whaleTriggers = 8;
+let liveActive = true;
+let openPos = 3;
+
+// ===== INIT PAIRS =====
+function initPairs() {
+  const grid = document.getElementById('pairGrid');
+  PAIRS.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'pair-badge ' + (ACTIVE_PAIRS.has(p) ? 'on' : 'off');
+    el.textContent = p;
+    el.onclick = () => {
+      if (ACTIVE_PAIRS.has(p)) ACTIVE_PAIRS.delete(p);
+      else ACTIVE_PAIRS.add(p);
+      el.className = 'pair-badge ' + (ACTIVE_PAIRS.has(p) ? 'on' : 'off');
+    };
+    grid.appendChild(el);
+  });
+}
+
+// ===== EQUITY CHART =====
+function drawEquity() {
+  const canvas = document.getElementById('equityChart');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth; const H = 140;
+  canvas.width = W * devicePixelRatio; canvas.height = H * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+
+  if (equityData.length < 2) return;
+  const min = Math.min(...equityData) - 20;
+  const max = Math.max(...equityData) + 20;
+  const range = max - min;
+  const toX = (i) => (i / (equityData.length - 1)) * (W - 4) + 2;
+  const toY = (v) => H - 8 - ((v - min) / range) * (H - 16);
+
+  // Fill
+  ctx.beginPath();
+  ctx.moveTo(toX(0), H);
+  equityData.forEach((v, i) => ctx.lineTo(toX(i), toY(v)));
+  ctx.lineTo(toX(equityData.length-1), H);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, 'rgba(0,212,170,0.25)');
+  grad.addColorStop(1, 'rgba(0,212,170,0.01)');
+  ctx.fillStyle = grad; ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  equityData.forEach((v, i) => { if(i===0) ctx.moveTo(toX(i),toY(v)); else ctx.lineTo(toX(i),toY(v)); });
+  ctx.strokeStyle = '#00d4aa'; ctx.lineWidth = 1.5; ctx.stroke();
+}
+
+// ===== GENERATE EQUITY =====
+function initEquity() {
+  let v = 12000;
+  for (let i = 0; i < 80; i++) {
+    v += (Math.random() - 0.42) * 30;
+    equityData.push(v);
+  }
+  equityData.push(equity);
+  drawEquity();
+}
+
+// ===== 7 SIGNALS DEFINITION =====
+const SIGNAL_DEFS = [
+  { id: 'rsi',    label: 'RSI(14)',       desc: 'Momentum aligned'     },
+  { id: 'macd',   label: 'MACD',          desc: 'Crossover confirmed'  },
+  { id: 'ema',    label: 'EMA 50/200',    desc: 'Trend direction'      },
+  { id: 'bb',     label: 'Bollinger BB',  desc: 'Breakout detected'    },
+  { id: 'vol',    label: 'Volume spike',  desc: 'Unusual volume'       },
+  { id: 'whale',  label: 'Whale signal',  desc: 'Large wallet activity'},
+  { id: 'atr',    label: 'ATR filter',    desc: 'Volatility safe'      },
+];
+
+function renderSignalChecks(states) {
+  const minReq = parseInt(document.getElementById('minSigRange').value) || 5;
+  const passed = states.filter(Boolean).length;
+  document.getElementById('signalChecks').innerHTML = SIGNAL_DEFS.map((s, i) => {
+    const on = states[i];
+    const col = on ? 'var(--buy)' : 'var(--sell)';
+    const icon = on ? '✓' : '✗';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:7px">
+        <span style="font-size:11px;font-weight:700;color:${col};width:14px;text-align:center">${icon}</span>
+        <span style="font-size:11px;color:${on ? 'var(--text)' : 'var(--muted)'}">${s.label}</span>
+      </div>
+      <span style="font-size:10px;color:${on ? col : 'var(--muted)'}">${on ? s.desc : '—'}</span>
+    </div>`;
+  }).join('') +
+  `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+    <span style="font-size:10px;color:var(--muted)">Passed / required</span>
+    <span style="font-size:12px;font-weight:700;color:${passed >= minReq ? 'var(--buy)' : 'var(--skip)'}">${passed} / ${minReq}</span>
+  </div>`;
+}
+
+// ===== SIGNAL ENGINE =====
+function pickSignal() {
+  const r = Math.random();
+  let cum = 0;
+  for (let i = 0; i < SIGNAL_TYPES.length; i++) {
+    cum += SIGNAL_WEIGHTS[i];
+    if (r < cum) return SIGNAL_TYPES[i];
+  }
+  return 'SKIP';
+}
+
+function updateSignal() {
+  const minReq = parseInt(document.getElementById('minSigRange').value) || 5;
+  const maxPos = parseInt(document.getElementById('maxPosRange').value) || 3;
+
+  // Generate individual signal states
+  const basePass = Math.random() > 0.38; // tendency: mostly passing
+  const states = SIGNAL_DEFS.map(() => Math.random() > (basePass ? 0.25 : 0.55));
+  const passedCount = states.filter(Boolean).length;
+  const meetsThreshold = passedCount >= minReq;
+  const underMaxPos = openPos < maxPos;
+
+  // Decide signal
+  let sig;
+  if (!meetsThreshold || !underMaxPos) {
+    sig = 'SKIP';
+  } else {
+    sig = Math.random() > 0.42 ? 'BUY' : 'SELL';
+  }
+
+  const pair = Array.from(ACTIVE_PAIRS)[Math.floor(Math.random() * ACTIVE_PAIRS.size)] || 'XAU/USD';
+  const ws = (4 + Math.random() * 5.5).toFixed(1);
+
+  // Update signal box
+  const box = document.getElementById('signalBox');
+  box.className = 'signal-box ' + sig;
+  document.getElementById('signalLabel').textContent = sig;
+  document.getElementById('signalPair').textContent = pair + ' · 2s cycle';
+
+  const sigColor = sig === 'BUY' ? 'var(--buy)' : sig === 'SELL' ? 'var(--sell)' : 'var(--skip)';
+  document.getElementById('sigCountBig').textContent = passedCount + '/7';
+  document.getElementById('sigCountBig').style.color = meetsThreshold ? sigColor : 'var(--skip)';
+  document.getElementById('whaleScore').textContent = ws;
+
+  renderSignalChecks(states);
+
+  // Block if max positions reached
+  if (!underMaxPos) {
+    document.getElementById('signalPair').textContent = pair + ' · max positions reached';
+  }
+
+  if (sig !== 'SKIP' && liveActive && meetsThreshold && underMaxPos) {
+    addTrade(sig, pair, passedCount);
+  }
+}
+
+// ===== RISK DISPLAY =====
+function updateRiskDisplay() {
+  const pct = parseFloat(document.getElementById('riskRange').value);
+  const dollar = (equity * pct / 100);
+  document.getElementById('riskVal').textContent = pct + '%';
+  document.getElementById('riskDollar').textContent = '$' + dollar.toFixed(2);
+}
+
+// ===== TRADE LOG =====
+let trades = [];
+function addTrade(side, pair, sigsPassed) {
+  const maxPos = parseInt(document.getElementById('maxPosRange').value) || 3;
+  if (openPos >= maxPos) return; // hard gate
+
+  const riskPct = parseFloat(document.getElementById('riskRange').value);
+  const riskAmt = equity * riskPct / 100;
+  const won = Math.random() > 0.35;
+  const pnl = won ? riskAmt * (1.5 + Math.random()) : -riskAmt * (0.8 + Math.random() * 0.4);
+
+  tradeNum++;
+  openPos = Math.min(maxPos, openPos + 1);
+  equity += pnl;
+  dailyPnl += pnl;
+  equityData.push(equity);
+  if (equityData.length > 120) equityData.shift();
+  drawEquity();
+  updateRiskDisplay();
+
+  const now = new Date();
+  const t = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0') + ':' + now.getSeconds().toString().padStart(2,'0');
+  trades.unshift({ side, pair, pnl, t, sigsPassed, riskAmt });
+  if (trades.length > 20) trades.pop();
+  renderTrades();
+  updateStats();
+}
+
+function renderTrades() {
+  const log = document.getElementById('tradeLog');
+  log.innerHTML = trades.slice(0,8).map(t => `
+    <div class="trade-item">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="trade-side ${t.side[0]}">${t.side}</span>
+        <span class="trade-pair">${t.pair}</span>
+        <span style="font-size:10px;color:var(--muted)">${t.sigsPassed}/7 ✓</span>
+      </div>
+      <div style="text-align:right">
+        <div class="trade-pnl ${t.pnl >= 0 ? 'green' : 'red'}">${t.pnl >= 0 ? '+' : ''}$${Math.abs(t.pnl).toFixed(2)}</div>
+        <div style="font-size:10px;color:var(--muted)">${t.t} · risk $${t.riskAmt ? t.riskAmt.toFixed(0) : '—'}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ===== WHALE FEED =====
+let whaleItems = [];
+function addWhaleAlert() {
+  const amounts = [1.2, 2.4, 5.8, 0.8, 12.4, 3.1, 0.5, 7.7];
+  const amt = amounts[Math.floor(Math.random() * amounts.length)];
+  const asset = WHALE_ASSETS[Math.floor(Math.random() * WHALE_ASSETS.length)];
+  const wallet = WALLET_IDS[Math.floor(Math.random() * WALLET_IDS.length)];
+  const directions = ['exchange → unknown','unknown → exchange','whale wallet → whale wallet','CEX → DeFi'];
+  const dir = directions[Math.floor(Math.random() * directions.length)];
+  const size = amt > 5 ? 'large' : amt > 2 ? 'medium' : 'small';
+  const now = new Date();
+  const t = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0') + ':' + now.getSeconds().toString().padStart(2,'0');
+
+  if (size === 'large') { whaleTriggers++; document.getElementById('whaleTriggers').textContent = whaleTriggers; }
+  whaleItems.unshift({ amt, asset, wallet, dir, size, t });
+  if (whaleItems.length > 15) whaleItems.pop();
+  renderWhales();
+}
+
+function renderWhales() {
+  document.getElementById('whaleFeed').innerHTML = whaleItems.slice(0,7).map(w => `
+    <div class="whale-item">
+      <div class="whale-dot ${w.size}"></div>
+      <div class="whale-body">
+        <div class="whale-amount" style="color:${w.size==='large'?'var(--sell)':w.size==='medium'?'var(--skip)':'var(--muted)'}">${w.amt.toFixed(1)}K ${w.asset}</div>
+        <div class="whale-detail">${w.wallet} · ${w.dir}</div>
+      </div>
+      <div class="whale-time">${w.t}</div>
+    </div>`).join('');
+}
+
+// ===== STATS =====
+function updateStats() {
+  const maxPos = parseInt(document.getElementById('maxPosRange').value) || 3;
+  document.getElementById('equityVal').textContent = '$' + equity.toFixed(2);
+  const pnlSign = dailyPnl >= 0 ? '+' : '';
+  document.getElementById('dailyPnl').textContent = pnlSign + '$' + dailyPnl.toFixed(2);
+  document.getElementById('dailyPnl').style.color = dailyPnl >= 0 ? 'var(--buy)' : 'var(--sell)';
+  document.getElementById('tradesToday').textContent = tradeNum;
+
+  const wins = trades.filter(t => t.pnl > 0).length;
+  const wr = trades.length ? ((wins / trades.length) * 100).toFixed(1) : '71.4';
+  document.getElementById('winRate').textContent = wr + '%';
+
+  // Simulate positions closing over time
+  if (openPos > 0 && Math.random() > 0.65) openPos = Math.max(0, openPos - 1);
+  const posColor = openPos >= maxPos ? 'var(--sell)' : openPos > 0 ? 'var(--skip)' : 'var(--muted)';
+  document.getElementById('openPos').textContent = openPos + ' / ' + maxPos;
+  document.getElementById('openPos').style.color = posColor;
+}
+
+// ===== INDICATORS (random walk) =====
+function updateIndicators() {
+  const rsi = (45 + Math.random() * 30).toFixed(1);
+  const macd = ((Math.random() - 0.4) * 0.6).toFixed(2);
+  document.getElementById('rsiVal').textContent = rsi;
+  document.getElementById('rsiVal').style.color = rsi > 50 ? 'var(--buy)' : 'var(--sell)';
+  document.getElementById('macdVal').textContent = (macd >= 0 ? '+' : '') + macd;
+  document.getElementById('macdVal').style.color = macd >= 0 ? 'var(--buy)' : 'var(--sell)';
+
+  const prices = { xauPrice: 2318 + (Math.random()-0.5)*8, btcPrice: 87240 + (Math.random()-0.5)*400, ethPrice: 3412 + (Math.random()-0.5)*40, xagPrice: 28.94 + (Math.random()-0.5)*0.3 };
+  document.getElementById('xauPrice').textContent = '$' + prices.xauPrice.toFixed(2);
+  document.getElementById('btcPrice').textContent = '$' + Math.round(prices.btcPrice).toLocaleString();
+  document.getElementById('ethPrice').textContent = '$' + Math.round(prices.ethPrice).toLocaleString();
+  document.getElementById('xagPrice').textContent = '$' + prices.xagPrice.toFixed(2);
+}
+
+// ===== LATENCY JITTER =====
+function updateLatency() {
+  const ids = ['l1','l2','l3','l4','l5','l6'];
+  const base = [12,28,45,62,74,110];
+  ids.forEach((id, i) => { document.getElementById(id).textContent = (base[i] + Math.floor(Math.random()*8)) + 'ms'; });
+}
+
+// ===== CLOCK =====
+function updateClock() {
+  const n = new Date();
+  document.getElementById('clockEl').textContent = n.toUTCString().slice(17,25) + ' UTC';
+}
+
+// ===== SCAN COUNTER =====
+function updateScanCount() {
+  scanCount += Math.floor(Math.random() * 800 + 400);
+  document.getElementById('scanCount').textContent = 'Scans: ' + scanCount.toLocaleString();
+}
+
+// ===== TOGGLES =====
+function toggleLive(on) {
+  liveActive = on;
+  document.getElementById('statusDot').style.background = on ? 'var(--buy)' : 'var(--skip)';
+  document.getElementById('statusDot').style.boxShadow = on ? '0 0 6px var(--buy)' : '0 0 6px var(--skip)';
+  document.getElementById('statusText').textContent = on ? 'LIVE — scanning' : 'PAUSED';
+  document.getElementById('statusText').style.color = on ? 'var(--buy)' : 'var(--skip)';
+}
+
+function emergencyHalt() {
+  document.getElementById('liveToggle').checked = false;
+  toggleLive(false);
+  document.getElementById('statusText').textContent = 'EMERGENCY HALT';
+  document.getElementById('statusText').style.color = 'var(--sell)';
+  document.getElementById('statusDot').style.background = 'var(--sell)';
+}
+
+// ===== MAIN LOOP =====
+let scanInterval = 2000;
+let mainTimer;
+
+function tick() {
+  updateClock();
+  updateScanCount();
+  updateSignal();
+  updateIndicators();
+  if (Math.random() > 0.5) addWhaleAlert();
+  if (Math.random() > 0.7) updateLatency();
+}
+
+function startLoop() {
+  clearInterval(mainTimer);
+  scanInterval = parseInt(document.getElementById('scanSelect').value) * 1000;
+  mainTimer = setInterval(tick, scanInterval);
+}
+
+document.getElementById('scanSelect').addEventListener('change', startLoop);
+
+// ===== BOOT =====
+initPairs();
+initEquity();
+renderWhales();
+updateClock();
+updateRiskDisplay();
+
+// Pre-populate signal checks on load
+const initStates = SIGNAL_DEFS.map(() => Math.random() > 0.3);
+renderSignalChecks(initStates);
+
+// Pre-populate trades
+for (let i = 0; i < 8; i++) {
+  const sides = ['BUY','SELL'];
+  const side = sides[Math.floor(Math.random() * 2)];
+  const pair = Array.from(ACTIVE_PAIRS)[Math.floor(Math.random() * ACTIVE_PAIRS.size)];
+  const pnl = (Math.random() > 0.35 ? 1 : -1) * (Math.random() * 80 + 5);
+  const h = Math.floor(Math.random()*3);
+  const m = Math.floor(Math.random()*60).toString().padStart(2,'0');
+  const s = Math.floor(Math.random()*60).toString().padStart(2,'0');
+  trades.push({ side, pair, pnl, t: `${h}${m}:${s}`, conf: 70 + Math.floor(Math.random()*25) });
+}
+renderTrades();
+
+// Pre-populate whales
+for (let i = 0; i < 5; i++) addWhaleAlert();
+
+startLoop();
+setInterval(updateClock, 1000);
+</script>
+</body>
+</html>
